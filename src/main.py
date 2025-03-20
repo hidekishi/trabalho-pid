@@ -1,9 +1,19 @@
-from canny import canny_edge_detector
-from marr_hildreth import marr_hildreth
-from otsu import otsu_thresholding
-from watershed import watershed_segmentation
+from algoritmos import canny_edge_detector, marr_hildreth, otsu_thresholding, watershed_segmentation, contar_objetos, segmentar_imagem, freeman_chain_code
 import cv2
 import numpy as np
+
+def is_binary(image):
+    """
+    Verifica se a imagem é binária.
+    
+    Parâmetros:
+        image: Imagem (numpy array).
+    
+    Retorna:
+        bool: True se a imagem for binária, False caso contrário.
+    """
+    unique_values = np.unique(image)
+    return set(unique_values) <= {0, 1} or set(unique_values) <= {0, 255}
 
 def show_image(image, title):
     cv2.imshow(title, image)
@@ -19,7 +29,7 @@ def show_two_images(image1, image2, title):
         image2 = cv2.resize(image2, (new_width, image1.shape[0]))
     
     # Combina as duas imagens horizontalmente
-    combined_image = np.hstack((image1, image2))
+    combined_image = cv2.hconcat([image1, image2])
     
     # Exibe a imagem combinada
     cv2.imshow(title, combined_image)
@@ -36,5 +46,11 @@ canny_image = canny_edge_detector(image, 50, 150)
 
 show_image(otsu_image, "Otsu")
 show_image(watershed_image, "Watershed")
+show_image(watershed_segmentation(otsu_image), "Watershed Binario")
 
 show_two_images(marr_hildreth_image, canny_image, "Marr-Hildreth / Canny")
+
+show_two_images(image, segmentar_imagem(image), "Greyscale / Greyscale Segmentada")
+
+label_num = contar_objetos(otsu_image)
+print(label_num)
