@@ -1,35 +1,72 @@
 import cv2
 import numpy as np
 
-def otsu_thresholding(image):
-    """Implementação do método de Otsu para binarização."""
+def erode(image, kernel):
+    h, w = image.shape
+    kh, kw = kernel.shape
+    pad_h, pad_w = kh // 2, kw // 2
+    
+    # Criar imagem de saída preenchida com zeros
+    output = np.zeros((h, w), dtype=np.uint8)
+    
+    # Preencher bordas refletindo os pixels da imagem original
+    padded_image = cv2.copyMakeBorder(image, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_REPLICATE)
+    
+    # Percorrer a imagem incluindo as bordas
+    for i in range(h):
+        for j in range(w):
+            # Extrair a região de interesse (ROI)
+            roi = padded_image[i:i + kh, j:j + kw]
+            # Aplicar erosão: verifica se todos os pixels sob o kernel são brancos
+            if np.any(roi[kernel == 1] == 255):
+                output[i, j] = 255
+    
+    return output
+
+def dilate(image, kernel):
+    h, w = image.shape
+    kh, kw = kernel.shape
+    pad_h, pad_w = kh // 2, kw // 2
+    
+    # Criar imagem de saída preenchida com zeros
+    output = np.zeros((h, w), dtype=np.uint8)
+    
+    # Preencher bordas refletindo os pixels da imagem original
+    padded_image = cv2.copyMakeBorder(image, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_REPLICATE)
+    
+    # Percorrer a imagem incluindo as bordas
+    for i in range(h):
+        for j in range(w):
+            # Extrair a região de interesse (ROI)
+            roi = padded_image[i:i + kh, j:j + kw]
+            # Aplicar dilatação: verifica se pelo menos um pixel sob o kernel é branco
+            if np.all(roi[kernel == 1] == 255):
+                output[i, j] = 255
+    
+    return output
+
+def otsu(image):
     # Histograma da imagem
     hist, _ = np.histogram(image, bins=256, range=(0, 256))
-    
-    # Normalização do histograma
     hist = hist.astype(np.float32) / np.sum(hist)
-    
-    # Cálculo da variância intra-classe
+
     best_threshold = 0
     max_variance = 0
-    
+    # Testa diferentes limiares
     for threshold in range(256):
         w0 = np.sum(hist[:threshold])
         w1 = np.sum(hist[threshold:])
-        
         if w0 == 0 or w1 == 0:
             continue
-        
+        # Calcula a variancia
         mean0 = np.sum(np.arange(threshold) * hist[:threshold]) / w0
         mean1 = np.sum(np.arange(threshold, 256) * hist[threshold:]) / w1
-        
         variance = w0 * w1 * (mean0 - mean1)**2
         
         if variance > max_variance:
             max_variance = variance
             best_threshold = threshold
-    
-    # Aplicação do limiar
+    # Aplica o limiar
     binary_image = np.zeros_like(image)
     binary_image[image >= best_threshold] = 255
     
@@ -166,50 +203,43 @@ def watershed_segmentation(image):
     
     return image_color
 
-def contar_objetos(imagem_binaria):
-    # Dimensões da imagem
-    altura, largura = imagem_binaria.shape
+def contar_objetos(image):
+    altura, largura = image.shape
+    visitado = np.zeros_like(image, dtype=bool)
     
-    # Matriz para marcar pixels já visitados
-    visitado = np.zeros_like(imagem_binaria, dtype=bool)
+    # Vizinhanca
+    direcoes = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
     
-    # Direções para movimentação (8 conectividade)
-    direcoes = [(-1, -1), (-1, 0), (-1, 1), 
-                (0, -1),         (0, 1),
-                (1, -1), (1, 0), (1, 1)]
-    
+    # Busca em profundidade para encontrar todos os pixels conectados
     def dfs(x, y):
-        """Explora a região conectada a partir do pixel (x, y) usando DFS."""
         stack = [(x, y)]
         while stack:
             cx, cy = stack.pop()
             for dx, dy in direcoes:
                 nx, ny = cx + dx, cy + dy
-                if 0 <= nx < altura and 0 <= ny < largura and not visitado[nx, ny] and imagem_binaria[nx, ny] == 255:
+                if 0 <= nx < altura and 0 <= ny < largura and not visitado[nx, ny] and image[nx, ny] == 0:
                     visitado[nx, ny] = True
                     stack.append((nx, ny))
     
-    # Contador de objetos
     num_objetos = 0
     
     # Percorre a matriz procurando objetos
     for i in range(altura):
         for j in range(largura):
-            if imagem_binaria[i, j] == 255 and not visitado[i, j]:  # Novo objeto encontrado
+            if image[i, j] == 0 and not visitado[i, j]:
                 visitado[i, j] = True
                 num_objetos += 1
-                dfs(i, j)  # Preenche toda a região conectada
-    
+                dfs(i, j)
     return num_objetos
 
-def freeman_chain_code(imagem_binaria):
-    def encontrar_ponto_inicial(imagem_binaria):
-        for i in range(imagem_binaria.shape[0]):
-            for j in range(imagem_binaria.shape[1]):
-                if imagem_binaria[i, j] == 255:
+def freeman_chain_code(image):
+    def encontrar_ponto_inicial(image):
+        for i in range(image.shape[0]):
+            for j in range(image.shape[1]):
+                if image[i, j] == 255:
                     return (i, j)
         return None
-
+    # Direcoes
     DIRECTIONS = [
     (0, 1),   # 0: Leste
     (-1, 1),  # 1: Nordeste
@@ -220,11 +250,9 @@ def freeman_chain_code(imagem_binaria):
     (1, 0),   # 6: Sul
     (1, 1)    # 7: Sudeste
     ]
-    """
-    Calcula a cadeia de Freeman para o contorno de um objeto em uma imagem binária.
-    """
+
     # Encontra o ponto inicial
-    ponto_inicial = encontrar_ponto_inicial(imagem_binaria)
+    ponto_inicial = encontrar_ponto_inicial(image)
     if ponto_inicial is None:
         return []  # Nenhum objeto encontrado
     
@@ -242,8 +270,8 @@ def freeman_chain_code(imagem_binaria):
             y, x = ponto_atual[0] + dy, ponto_atual[1] + dx
             
             # Verifica se o próximo pixel está dentro da imagem e é parte do objeto
-            if 0 <= y < imagem_binaria.shape[0] and 0 <= x < imagem_binaria.shape[1]:
-                if imagem_binaria[y, x] == 255:
+            if 0 <= y < image.shape[0] and 0 <= x < image.shape[1]:
+                if image[y, x] == 255:
                     cadeia.append(direcao)
                     ponto_atual = (y, x)
                     direcao_inicial = (direcao + 5) % 8  # Ajusta a direção inicial
@@ -261,27 +289,54 @@ def freeman_chain_code(imagem_binaria):
     return cadeia
 
 def segmentar_imagem(imagem):
-    # Cria uma cópia da imagem para não modificar a original
     imagem_segmentada = imagem.copy()
-    
-    # Define as faixas de intensidade e os valores correspondentes
-    faixas = [
-        (0, 50, 25),
-        (51, 100, 75),
-        (101, 150, 125),
-        (151, 200, 175),
-        (201, 255, 255)
+    # Faixas de intensidade (Min, Max, Valor)
+    faixas = [(0, 50, 25),
+              (51, 100, 75),
+              (101, 150, 125),
+              (151, 200, 175),
+              (201, 255, 255)
     ]
-    
-    # Percorre cada pixel da imagem
-    for i in range(imagem.shape[0]):  # Linhas
-        for j in range(imagem.shape[1]):  # Colunas
+    # Substitui intensidades
+    for i in range(imagem.shape[0]):
+        for j in range(imagem.shape[1]):
             intensidade = imagem[i, j]
-            
-            # Verifica em qual faixa a intensidade do pixel se encaixa
             for inicio, fim, valor in faixas:
                 if inicio <= intensidade <= fim:
                     imagem_segmentada[i, j] = valor
                     break
-    
     return imagem_segmentada
+
+def filtro_box(imagem, kernel_size):
+    """
+    Aplica o filtro box (média) manualmente em uma imagem em tons de cinza.
+
+    :param imagem: Imagem em tons de cinza (array NumPy).
+    :param kernel_size: Tamanho do kernel (2, 3, 5, 7, etc.).
+    :return: Imagem filtrada.
+    """
+    # Obtém as dimensões da imagem
+    altura, largura = imagem.shape
+
+    # Cria uma imagem de saída preenchida com zeros
+    imagem_filtrada = np.zeros_like(imagem, dtype=np.float32)
+
+    # Define o raio do kernel
+    raio = kernel_size // 2
+
+    # Percorre a imagem, aplicando o filtro box
+    for y in range(raio, altura - raio):
+        for x in range(raio, largura - raio):
+            # Extrai a região de interesse (ROI) sob o kernel
+            roi = imagem[y - raio:y + raio + 1, x - raio:x + raio + 1]
+
+            # Calcula a média dos valores na ROI
+            media = np.mean(roi)
+
+            # Atribui o valor médio ao pixel central na imagem filtrada
+            imagem_filtrada[y, x] = media
+
+    # Converte a imagem filtrada de volta para uint8
+    imagem_filtrada = np.uint8(imagem_filtrada)
+
+    return imagem_filtrada
