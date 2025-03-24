@@ -74,7 +74,6 @@ def otsu(image):
 
 def marr_hildreth(image):
     def gaussian_kernel(size, sigma):
-        """Cria um kernel Gaussiano."""
         kernel = np.fromfunction(
             lambda x, y: (1/(2*np.pi*sigma**2)) * np.exp(-((x - (size-1)/2)**2 + (y - (size-1)/2)**2)/(2*sigma**2)),
             (size, size)
@@ -82,7 +81,6 @@ def marr_hildreth(image):
         return kernel / np.sum(kernel)
 
     def laplacian_of_gaussian(image, size=5, sigma=1):
-        """Aplica o filtro Laplaciano de Gaussiano (LoG) na imagem."""
         kernel = gaussian_kernel(size, sigma)
         kernel = cv2.Laplacian(kernel, cv2.CV_64F)
         log_image = cv2.filter2D(image, -1, kernel)
@@ -93,7 +91,6 @@ def marr_hildreth(image):
 
 def canny_edge_detector(image, low_threshold, high_threshold):
     def non_maximum_suppression(magnitude, direction):
-        """Supressão não máxima."""
         M, N = magnitude.shape
         suppressed = np.zeros((M, N), dtype=np.float32)
         angle = direction * 180. / np.pi
@@ -129,7 +126,6 @@ def canny_edge_detector(image, low_threshold, high_threshold):
         return suppressed
 
     def hysteresis_thresholding(image, low, high):
-        """Limiarização com histerese."""
         M, N = image.shape
         strong = np.zeros((M, N), dtype=np.uint8)
         weak = np.zeros((M, N), dtype=np.uint8)
@@ -148,7 +144,7 @@ def canny_edge_detector(image, low_threshold, high_threshold):
                         strong[i,j] = 0
 
         return strong
-    """Implementação simplificada do detector de bordas Canny."""
+
     # Suavização com filtro Gaussiano
     blurred = cv2.GaussianBlur(image, (5, 5), 0)
     
@@ -167,41 +163,6 @@ def canny_edge_detector(image, low_threshold, high_threshold):
     edges = hysteresis_thresholding(suppressed, low_threshold, high_threshold)
     
     return edges
-
-def watershed_segmentation(image):
-    """Implementação do algoritmo Watershed para segmentação."""
-    # Binarização da imagem
-    _, binary = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    
-    # Remoção de ruído
-    kernel = np.ones((3, 3), np.uint8)
-    opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=2)
-    
-    # Área de fundo
-    sure_bg = cv2.dilate(opening, kernel, iterations=3)
-    
-    # Área de primeiro plano
-    dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
-    _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
-    
-    # Área desconhecida
-    sure_fg = np.uint8(sure_fg)
-    unknown = cv2.subtract(sure_bg, sure_fg)
-    
-    # Marcadores
-    _, markers = cv2.connectedComponents(sure_fg)
-    markers += 1
-    markers[unknown == 255] = 0
-    
-    # Aplicação do Watershed
-    # Converta a imagem para colorida (3 canais) antes de aplicar o Watershed
-    image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    markers = cv2.watershed(image_color, markers)
-    
-    # Marca as bordas dos objetos na imagem colorida
-    image_color[markers == -1] = [0, 0, 255]  # Bordas em vermelho
-    
-    return image_color
 
 def contar_objetos(image):
     altura, largura = image.shape
@@ -232,62 +193,6 @@ def contar_objetos(image):
                 dfs(i, j)
     return num_objetos
 
-def freeman_chain_code(image):
-    def encontrar_ponto_inicial(image):
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                if image[i, j] == 255:
-                    return (i, j)
-        return None
-    # Direcoes
-    DIRECTIONS = [
-    (0, 1),   # 0: Leste
-    (-1, 1),  # 1: Nordeste
-    (-1, 0),  # 2: Norte
-    (-1, -1), # 3: Noroeste
-    (0, -1),  # 4: Oeste
-    (1, -1),  # 5: Sudoeste
-    (1, 0),   # 6: Sul
-    (1, 1)    # 7: Sudeste
-    ]
-
-    # Encontra o ponto inicial
-    ponto_inicial = encontrar_ponto_inicial(image)
-    if ponto_inicial is None:
-        return []  # Nenhum objeto encontrado
-    
-    cadeia = []
-    ponto_atual = ponto_inicial
-    direcao_inicial = 0  # Começa na direção 0 (Leste)
-    
-    while True:
-        # Encontra a próxima direção
-        encontrou_proximo = False
-        for d in range(8):
-            # Calcula a próxima direção (usando módulo para circularidade)
-            direcao = (direcao_inicial + d) % 8
-            dy, dx = DIRECTIONS[direcao]
-            y, x = ponto_atual[0] + dy, ponto_atual[1] + dx
-            
-            # Verifica se o próximo pixel está dentro da imagem e é parte do objeto
-            if 0 <= y < image.shape[0] and 0 <= x < image.shape[1]:
-                if image[y, x] == 255:
-                    cadeia.append(direcao)
-                    ponto_atual = (y, x)
-                    direcao_inicial = (direcao + 5) % 8  # Ajusta a direção inicial
-                    encontrou_proximo = True
-                    break
-        
-        # Se não encontrou próximo pixel, termina
-        if not encontrou_proximo:
-            break
-        
-        # Se retornou ao ponto inicial, termina
-        if ponto_atual == ponto_inicial:
-            break
-    
-    return cadeia
-
 def segmentar_imagem(imagem):
     imagem_segmentada = imagem.copy()
     # Faixas de intensidade (Min, Max, Valor)
@@ -308,13 +213,6 @@ def segmentar_imagem(imagem):
     return imagem_segmentada
 
 def filtro_box(imagem, kernel_size):
-    """
-    Aplica o filtro box (média) manualmente em uma imagem em tons de cinza.
-
-    :param imagem: Imagem em tons de cinza (array NumPy).
-    :param kernel_size: Tamanho do kernel (2, 3, 5, 7, etc.).
-    :return: Imagem filtrada.
-    """
     # Obtém as dimensões da imagem
     altura, largura = imagem.shape
 

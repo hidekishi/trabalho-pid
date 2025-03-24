@@ -43,10 +43,10 @@ def show_four_images(image1, image2, image3, image4, title):
         
         # Combina as duas imagens horizontalmente
         return cv2.hconcat([image1, image2])
-    save_image(image1, title+"2")
-    save_image(image2, title+"3")
-    save_image(image1, title+"5")
-    save_image(image2, title+"7")
+    save_image(image1, title+"2.jpg")
+    save_image(image2, title+"3.jpg")
+    save_image(image1, title+"5.jpg")
+    save_image(image2, title+"7.jpg")
     combined_image = merge_image(merge_image(image1, image2), merge_image(image3, image4))
     
     # Exibe a imagem combinada
@@ -70,8 +70,6 @@ otsu_eroded_image = erode(otsu_image, kernel)
 print("Binária erodida...")
 otsu_eroded_dilated_image = dilate(otsu_eroded_image, kernel)
 print("Binária erodida e dilatada...")
-watershed_image = watershed_segmentation(image)
-print("Watershed executado...")
 marr_hildreth_image = marr_hildreth(image)
 print("Marr-Hildreth executado...")
 canny_image = canny_edge_detector(image, 50, 150)
@@ -84,8 +82,6 @@ box_5 = filtro_box(image, 5)
 box_7 = filtro_box(image, 7)
 
 show_image(otsu_image, "Otsu")
-show_image(otsu_eroded_image, "Otsu erodido")
-show_image(watershed_image, "Watershed")
 
 show_two_images(otsu_image, otsu_eroded_dilated_image, "Otsu normal-Aberto")
 show_two_images(marr_hildreth_image, canny_image, "Marr-Hildreth-Canny")
